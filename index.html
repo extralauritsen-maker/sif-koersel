@@ -38,25 +38,22 @@
   }
   .wrap{ width:100%; max-width: 460px; }
 
-  .eyebrow{
-    font-family: ui-monospace, "SF Mono", Menlo, monospace;
-    letter-spacing: .18em;
-    font-size: 11px;
-    color: var(--muted);
-    text-transform: uppercase;
-    display:flex;
-    align-items:center;
-    gap:8px;
-    margin-bottom: 6px;
-  }
-  .eyebrow .dot{ width:6px; height:6px; border-radius:50%; background: var(--amber); box-shadow:0 0 8px var(--amber); }
-
   h1{
     font-family: ui-monospace, "SF Mono", Menlo, monospace;
     font-weight: 700;
     font-size: clamp(20px, 6vw, 26px);
     letter-spacing: .01em;
     margin: 0 0 14px 0;
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  h1 .dot{ width:8px; height:8px; border-radius:50%; background: var(--amber); box-shadow:0 0 8px var(--amber); flex-shrink:0; }
+
+  .legend{
+    font-size: 11px;
+    color: var(--muted);
+    margin: -8px 0 14px 2px;
   }
 
   .status{
@@ -203,10 +200,10 @@
 </head>
 <body>
   <div class="wrap">
-    <div class="eyebrow"><span class="dot"></span>SIF · Kørsel</div>
-    <h1>Min uge</h1>
+    <h1><span class="dot"></span>SIF kørsel</h1>
 
     <div id="status" class="status">Henter …</div>
+    <div id="legend" class="legend">🔁 byttet = midlertidig ændring for ugen</div>
     <div id="board" class="board" style="display:none;"></div>
     <div id="empty" class="empty" style="display:none;">Ingen kørsler fundet.</div>
     <div id="err" class="err" style="display:none;"></div>
@@ -286,13 +283,14 @@ function isoWeek(date){
   return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
 }
 
-function effectiveParity(){
+function getEffective(){
   const now = new Date();
   const dow = now.getDay(); // 0 Sun .. 6 Sat
+  const isWeekend = (dow === 6 || dow === 0);
   const ref = new Date(now);
-  if(dow === 6 || dow === 0) ref.setDate(now.getDate() + 7);
+  if(isWeekend) ref.setDate(now.getDate() + 7);
   const week = isoWeek(ref);
-  return week % 2 === 0 ? "lige" : "ulige";
+  return { week, parity: week % 2 === 0 ? "lige" : "ulige", isWeekend };
 }
 
 function todayName(){
@@ -331,15 +329,13 @@ async function load(){
     const text = await res.text();
     const rows = parseCSV(text);
 
-    // find status line (row index 1, column 0 — dvs. celle A2)
-    const status = (rows[1] && rows[1][0]) ? rows[1][0] : "";
-    statusEl.innerHTML = status.replace(/uge (\d+)/i, "uge <b>$1</b>");
-
-    // find header row ("Dag" i kolonne 0)
+    // find header row ("Dag" i kolonne 0) — statusteksten sættes nedenfor ud fra effektiv uge
+    const eff = getEffective();
+    statusEl.innerHTML = `Herunder vises ${eff.isWeekend ? "næste" : "denne"} uge: Uge <b>${eff.week}</b>`;
     const headerIdx = rows.findIndex(r => (r[0] || "").trim() === "Dag");
     if(headerIdx === -1) throw new Error("Kunne ikke finde tabellen (mangler 'Dag'-header).");
 
-    const parity = effectiveParity();
+    const parity = eff.parity;
     const today = todayName();
     const items = [];
     for(let i = headerIdx + 1; i < rows.length; i++){
