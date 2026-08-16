@@ -239,6 +239,7 @@ const GID = "294918478";
 // Find den i adresselinjen når arket er åbent til redigering:
 // docs.google.com/spreadsheets/d/DENNE-DEL-HER/edit#gid=...
 const SHEET_EDIT_ID = "1yawTv2gBaK5WEfcmhpPHNse1CDYndbuJ";
+const EXCEPTIONS_GID = "491318011";
 // ============================================================
 
 const DRIVER_COLORS = {
@@ -403,8 +404,10 @@ function escapeHtml(s){
 
 if(SHEET_EDIT_ID && !SHEET_EDIT_ID.startsWith("PASTE")){
   const fab = document.getElementById("editFab");
-  fab.href = `https://docs.google.com/spreadsheets/d/${SHEET_EDIT_ID}/edit#gid=${GID}`;
+  const targetGid = (EXCEPTIONS_GID && !EXCEPTIONS_GID.startsWith("PASTE")) ? EXCEPTIONS_GID : GID;
+  fab.href = `https://docs.google.com/spreadsheets/d/${SHEET_EDIT_ID}/edit#gid=${targetGid}`;
   fab.style.display = "flex";
+}
 }
 
 document.getElementById("refresh").addEventListener("click", load);
