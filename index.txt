@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Min uge">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#12161d">
+<title>Min uge – SIF kørsel</title>
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%2312161d'/%3E%3Crect x='10' y='10' width='80' height='80' rx='14' fill='none' stroke='%23ffb000' stroke-width='3'/%3E%3Ctext x='50' y='62' font-family='ui-monospace,Menlo,monospace' font-size='34' font-weight='700' fill='%23ffb000' text-anchor='middle'%3ESIF%3C/text%3E%3C/svg%3E">
+
+<style>
+  :root{
+    --bg: #12161d;
+    --panel: #1b212b;
+    --panel-2: #212836;
+    --line: #2a323f;
+    --text: #eef1f5;
+    --muted: #8a93a3;
+    --amber: #ffb000;
+    --amber-dim: #4d3a12;
+    --ok: #37c26a;
+  }
+  *{ box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html,body{ height:100%; }
+  body{
+    margin:0;
+    background: radial-gradient(1200px 600px at 50% -10%, #1a2029 0%, var(--bg) 55%);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+    min-height: 100dvh;
+    padding: max(18px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+  }
+  .wrap{ width:100%; max-width: 460px; }
+
+  .eyebrow{
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    letter-spacing: .18em;
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    display:flex;
+    align-items:center;
+    gap:8px;
+    margin-bottom: 6px;
+  }
+  .eyebrow .dot{ width:6px; height:6px; border-radius:50%; background: var(--amber); box-shadow:0 0 8px var(--amber); }
+
+  h1{
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-weight: 700;
+    font-size: clamp(20px, 6vw, 26px);
+    letter-spacing: .01em;
+    margin: 0 0 14px 0;
+  }
+
+  .status{
+    background: linear-gradient(180deg, var(--panel-2), var(--panel));
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 14px 16px;
+    font-size: clamp(14px, 3.6vw, 15.5px);
+    line-height: 1.4;
+    color: var(--text);
+    margin-bottom: 18px;
+  }
+  .status b{ color: var(--amber); }
+
+  .board{
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    overflow: hidden;
+  }
+  .row{
+    display:grid;
+    grid-template-columns: minmax(52px, 60px) 1fr auto;
+    gap: 10px;
+    align-items:center;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--line);
+  }
+  .row:last-child{ border-bottom:none; }
+  .row.today{
+    background: linear-gradient(90deg, var(--amber-dim), transparent 60%);
+    box-shadow: inset 3px 0 0 var(--amber);
+  }
+  .time{
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-weight: 700;
+    font-size: clamp(12px, 3.3vw, 14px);
+    line-height: 1.25;
+    color: var(--text);
+    white-space: normal;
+  }
+  .meta{ min-width:0; }
+  .day{
+    font-size: clamp(13px, 3.4vw, 14.5px);
+    font-weight: 600;
+    color: var(--text);
+  }
+  .task{
+    font-size: clamp(11.5px, 3.1vw, 12.5px);
+    color: var(--muted);
+    margin-top: 2px;
+    overflow-wrap: break-word;
+  }
+  .note{
+    font-size: 11px;
+    color: var(--muted);
+    font-style: italic;
+    margin-top: 3px;
+  }
+  .driver{
+    display:flex;
+    flex-direction:column;
+    align-items:flex-end;
+    gap:4px;
+  }
+  .chip{
+    font-size: clamp(11.5px, 3.2vw, 13px);
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+  .swapped{
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 9.5px;
+    letter-spacing: .06em;
+    color: var(--amber);
+    text-transform: uppercase;
+  }
+
+  .foot{
+    margin-top: 14px;
+    display:flex;
+    justify-content: space-between;
+    align-items:center;
+    font-size: 11px;
+    color: var(--muted);
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  .foot button{
+    background: none;
+    border: 1px solid var(--line);
+    color: var(--muted);
+    font-family: inherit;
+    font-size: 11px;
+    padding: 6px 10px;
+    border-radius: 8px;
+  }
+  .foot button:active{ background: var(--panel-2); }
+
+  .empty, .err{
+    text-align:center;
+    color: var(--muted);
+    padding: 40px 20px;
+    font-size: 14px;
+    line-height:1.5;
+  }
+  .err b{ color: var(--text); }
+  .err code{
+    display:block;
+    margin-top:10px;
+    background: var(--panel-2);
+    padding: 10px;
+    border-radius: 8px;
+    font-size: 11px;
+    text-align:left;
+    color: var(--muted);
+    word-break: break-all;
+  }
+
+  .fab{
+    position: fixed;
+    right: max(18px, env(safe-area-inset-right));
+    bottom: max(18px, env(safe-area-inset-bottom));
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: var(--amber);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    box-shadow: 0 6px 18px rgba(0,0,0,.45), 0 0 0 1px rgba(255,255,255,.05);
+    text-decoration:none;
+    transition: transform .15s ease;
+  }
+  .fab:active{ transform: scale(0.92); }
+  .fab svg{ width:22px; height:22px; }
+
+  @media (prefers-reduced-motion: no-preference){
+    .board{ animation: rise .35s ease-out; }
+    @keyframes rise{ from{ opacity:0; transform: translateY(6px);} to{opacity:1; transform:none;} }
+  }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="eyebrow"><span class="dot"></span>SIF · Kørsel</div>
+    <h1>Min uge</h1>
+
+    <div id="status" class="status">Henter …</div>
+    <div id="board" class="board" style="display:none;"></div>
+    <div id="empty" class="empty" style="display:none;">Ingen kørsler fundet.</div>
+    <div id="err" class="err" style="display:none;"></div>
+
+    <div class="foot">
+      <span id="updated">–</span>
+      <button id="refresh">Opdatér</button>
+    </div>
+  </div>
+
+  <a id="editFab" class="fab" href="#" target="_blank" rel="noopener" style="display:none" aria-label="Rediger i Google Sheets">
+    <svg viewBox="0 0 24 24" fill="none" stroke="#12161d" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 20h9"/>
+      <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>
+    </svg>
+  </a>
+
+<script>
+// ============================================================
+// KONFIGURATION — udfyld disse to fra Google Sheets:
+// Fil → Del → Publicér på nettet → vælg arket "Kørselsplan" → CSV → Udgiv
+// Kopiér linket. PUBLISHED_ID er delen mellem "/d/e/" og "/pub".
+// GID står i URL'en når du har fanebladet "Kørselsplan" åbent i browseren,
+// efter "gid=" (fx ...#gid=123456789).
+// ============================================================
+const PUBLISHED_ID = "2PACX-1vRynXZZRWAWrd1vGsfvT-8g1yYfRkhtrqhvDGaqEStuxWjb7uUqlC1VGAElVvvHLQ";
+const GID = "294918478";
+
+// Til "Rediger"-knappen: den almindelige regneark-ID (IKKE published-ID).
+// Find den i adresselinjen når arket er åbent til redigering:
+// docs.google.com/spreadsheets/d/DENNE-DEL-HER/edit#gid=...
+const SHEET_EDIT_ID = "1yawTv2gBaK5WEfcmhpPHNse1CDYndbuJ";
+// ============================================================
+
+const DRIVER_COLORS = {
+  "Eddie":    { bg:"#1c3a52", fg:"#8ec9f2" },
+  "August":   { bg:"#4a2c19", fg:"#f2b28e" },
+  "Stina":    { bg:"#233a24", fg:"#9edb9f" },
+  "Sidse":    { bg:"#4a4319", fg:"#f2df8e" },
+  "Rune":     { bg:"#33263f", fg:"#cfa8f2" },
+  "Kristian": { bg:"#33363d", fg:"#c7ccd6" },
+};
+const DAY_ORDER = ["Mandag","Tirsdag","Onsdag","Torsdag","Fredag","Lørdag","Søndag"];
+
+function csvUrl(){
+  return `https://docs.google.com/spreadsheets/d/e/${PUBLISHED_ID}/pub?gid=${GID}&single=true&output=csv&t=${Date.now()}`;
+}
+
+function parseCSV(text){
+  const rows = []; let row = [], field = "", inQ = false;
+  for(let i=0;i<text.length;i++){
+    const c = text[i];
+    if(inQ){
+      if(c === '"'){ if(text[i+1] === '"'){ field+='"'; i++; } else inQ=false; }
+      else field += c;
+    } else {
+      if(c === '"') inQ = true;
+      else if(c === ',') { row.push(field); field=""; }
+      else if(c === '\n'){ row.push(field); rows.push(row); row=[]; field=""; }
+      else if(c === '\r'){ /* skip */ }
+      else field += c;
+    }
+  }
+  if(field.length || row.length){ row.push(field); rows.push(row); }
+  return rows;
+}
+
+function isoWeek(date){
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(),0,1));
+  return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+}
+
+function effectiveParity(){
+  const now = new Date();
+  const dow = now.getDay(); // 0 Sun .. 6 Sat
+  const ref = new Date(now);
+  if(dow === 6 || dow === 0) ref.setDate(now.getDate() + 7);
+  const week = isoWeek(ref);
+  return week % 2 === 0 ? "lige" : "ulige";
+}
+
+function todayName(){
+  const dow = new Date().getDay(); // 0 Sun..6 Sat
+  const map = ["Søndag","Mandag","Tirsdag","Onsdag","Torsdag","Fredag","Lørdag"];
+  return map[dow];
+}
+
+function baseDay(label){
+  return label.replace(/\s*\(.*\)\s*$/, "").trim();
+}
+function parityOf(label){
+  if(/\(ulige uge\)/i.test(label)) return "ulige";
+  if(/\(lige uge\)/i.test(label)) return "lige";
+  return null;
+}
+
+async function load(){
+  const statusEl = document.getElementById("status");
+  const boardEl = document.getElementById("board");
+  const emptyEl = document.getElementById("empty");
+  const errEl = document.getElementById("err");
+  const updatedEl = document.getElementById("updated");
+
+  if(PUBLISHED_ID.startsWith("PASTE") || GID.startsWith("PASTE")){
+    statusEl.style.display = "none";
+    errEl.style.display = "block";
+    errEl.innerHTML = `<b>Ikke sat op endnu.</b><br>Udfyld PUBLISHED_ID og GID øverst i filen.
+      <code>Fil → Del → Publicér på nettet → vælg "Kørselsplan" → CSV</code>`;
+    return;
+  }
+
+  try{
+    const res = await fetch(csvUrl(), { cache: "no-store" });
+    if(!res.ok) throw new Error("HTTP " + res.status);
+    const text = await res.text();
+    const rows = parseCSV(text);
+
+    // find status line (row index 1, column 0 — dvs. celle A2)
+    const status = (rows[1] && rows[1][0]) ? rows[1][0] : "";
+    statusEl.innerHTML = status.replace(/uge (\d+)/i, "uge <b>$1</b>");
+
+    // find header row ("Dag" i kolonne 0)
+    const headerIdx = rows.findIndex(r => (r[0] || "").trim() === "Dag");
+    if(headerIdx === -1) throw new Error("Kunne ikke finde tabellen (mangler 'Dag'-header).");
+
+    const parity = effectiveParity();
+    const today = todayName();
+    const items = [];
+    for(let i = headerIdx + 1; i < rows.length; i++){
+      const r = rows[i];
+      const dag = (r[0] || "").trim();
+      if(!dag) break;
+      if(/^Noter/i.test(dag)) break;
+
+      const p = parityOf(dag);
+      if(p && p !== parity) continue; // spring den ikke-gældende torsdag-variant over
+
+      items.push({
+        dag, base: baseDay(dag),
+        tid: (r[1]||"").trim(),
+        opgave: (r[2]||"").trim(),
+        koerer: (r[3]||"").trim(),
+        note: (r[4]||"").trim(),
+        obs: (r[5]||"").trim(),
+      });
+    }
+
+    if(items.length === 0){
+      boardEl.style.display = "none";
+      emptyEl.style.display = "block";
+    } else {
+      boardEl.innerHTML = items.map(it => {
+        const isToday = it.base === today;
+        const colors = DRIVER_COLORS[it.koerer] || { bg:"#2a323f", fg:"#eef1f5" };
+        return `
+          <div class="row ${isToday ? "today" : ""}">
+            <div class="time">${formatTime(it.tid)}</div>
+            <div class="meta">
+              <div class="day">${escapeHtml(it.dag)}</div>
+              <div class="task">${escapeHtml(it.opgave)}</div>
+              ${it.note ? `<div class="note">${escapeHtml(it.note)}</div>` : ""}
+            </div>
+            <div class="driver">
+              <span class="chip" style="background:${colors.bg}; color:${colors.fg}">${escapeHtml(it.koerer)}</span>
+              ${it.obs ? `<span class="swapped">Byttet</span>` : ""}
+            </div>
+          </div>`;
+      }).join("");
+      boardEl.style.display = "block";
+      emptyEl.style.display = "none";
+    }
+    errEl.style.display = "none";
+    updatedEl.textContent = "Opdateret " + new Date().toLocaleTimeString("da-DK", {hour:"2-digit", minute:"2-digit"});
+  } catch(e){
+    statusEl.style.display = "none";
+    boardEl.style.display = "none";
+    errEl.style.display = "block";
+    errEl.innerHTML = `<b>Kunne ikke hente data.</b><br>Tjek at arket stadig er publiceret på nettet, og at PUBLISHED_ID/GID er korrekte.
+      <code>${escapeHtml(e.message)}</code>`;
+  }
+}
+
+function formatTime(t){
+  return t.split("/").map(part => escapeHtml(part.trim())).join("<br>");
+}
+
+function escapeHtml(s){
+  const d = document.createElement("div");
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+if(SHEET_EDIT_ID && !SHEET_EDIT_ID.startsWith("PASTE")){
+  const fab = document.getElementById("editFab");
+  fab.href = `https://docs.google.com/spreadsheets/d/${SHEET_EDIT_ID}/edit#gid=${GID}`;
+  fab.style.display = "flex";
+}
+
+document.getElementById("refresh").addEventListener("click", load);
+document.addEventListener("visibilitychange", () => { if(document.visibilityState === "visible") load(); });
+load();
+setInterval(load, 5 * 60 * 1000);
+</script>
+</body>
+</html>
