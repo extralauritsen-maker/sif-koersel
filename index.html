@@ -217,7 +217,7 @@
     </div>
   </div>
 
-  <a id="editFab" class="fab" href="#" target="_blank" rel="noopener" style="display:none" aria-label="Rediger i Google Sheets">
+  <a id="editFab" class="fab" href="#" target="_blank" rel="noopener" style="display:none" aria-label="Lav en undtagelse i Google Sheets">
     <svg viewBox="0 0 24 24" fill="none" stroke="#12161d" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
       <path d="M12 20h9"/>
       <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>
@@ -239,6 +239,10 @@ const GID = "294918478";
 // Find den i adresselinjen når arket er åbent til redigering:
 // docs.google.com/spreadsheets/d/DENNE-DEL-HER/edit#gid=...
 const SHEET_EDIT_ID = "1yawTv2gBaK5WEfcmhpPHNse1CDYndbuJ";
+
+// GID for fanebladet "Undtagelser" — knappen sender folk hertil (ikke til
+// Kørselsplan), så de retter det rigtige sted og ikke roder i formler.
+// Find den ved at åbne "Undtagelser"-fanen og kigge efter "gid=" i URL'en.
 const EXCEPTIONS_GID = "491318011";
 // ============================================================
 
@@ -407,7 +411,6 @@ if(SHEET_EDIT_ID && !SHEET_EDIT_ID.startsWith("PASTE")){
   const targetGid = (EXCEPTIONS_GID && !EXCEPTIONS_GID.startsWith("PASTE")) ? EXCEPTIONS_GID : GID;
   fab.href = `https://docs.google.com/spreadsheets/d/${SHEET_EDIT_ID}/edit#gid=${targetGid}`;
   fab.style.display = "flex";
-}
 }
 
 document.getElementById("refresh").addEventListener("click", load);
