@@ -450,7 +450,7 @@ async function load(force){
             <div class="meta">
               <div class="day">${escapeHtml(it.dag)}</div>
               <div class="task">${escapeHtml(it.opgave)}</div>
-              ${it.byttet ? `<div class="note">normalt ${escapeHtml(it.fast)}</div>`
+              ${it.byttet ? `<div class="note">${it.note ? escapeHtml(it.note) + " – " : ""}normalt ${escapeHtml(it.fast)}</div>`
                           : (it.note ? `<div class="note">${escapeHtml(it.note)}</div>` : "")}
             </div>
             <div class="driver">
