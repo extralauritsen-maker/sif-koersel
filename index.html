@@ -56,17 +56,31 @@
     margin: -8px 0 14px 2px;
   }
 
-  .status{
+  .weekbar{
+    display:flex; align-items:center; gap:10px;
     background: linear-gradient(180deg, var(--panel-2), var(--panel));
     border: 1px solid var(--line);
     border-radius: 14px;
-    padding: 14px 16px;
-    font-size: clamp(14px, 3.6vw, 15.5px);
-    line-height: 1.4;
-    color: var(--text);
-    margin-bottom: 18px;
+    padding: 10px 12px;
   }
-  .status b{ color: var(--amber); }
+  .weekbar > button{
+    background:none; border:1px solid var(--line); color:var(--text);
+    width:38px; height:38px; border-radius:10px; font-size:18px; line-height:1; flex-shrink:0;
+  }
+  .weekbar > button:active{ background: var(--panel-2); }
+  .weekinfo{ flex:1; text-align:center; min-width:0; }
+  .weeknum{
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-weight:700; font-size: clamp(15px,4.2vw,17px);
+  }
+  .weeksub{ font-size:11px; color:var(--muted); margin-top:2px; }
+  .weeksub .tag{ color: var(--amber); }
+  .jump{
+    display:block; width:100%; text-align:center; background:none; border:none;
+    color:var(--muted); font:inherit; font-size:11px; padding:7px 0 0;
+    text-decoration:underline; text-underline-offset:3px;
+  }
+  .jump[hidden]{ display:none; }
 
   .board{
     background: var(--panel);
@@ -202,7 +216,16 @@
   <div class="wrap">
     <h1><span class="dot"></span>SIF kørsel</h1>
 
-    <div id="status" class="status">Henter …</div>
+    <div class="weekbar">
+      <button id="prev" aria-label="Forrige uge">&lsaquo;</button>
+      <div class="weekinfo">
+        <div class="weeknum" id="weeknum">–</div>
+        <div class="weeksub" id="weeksub">Henter …</div>
+      </div>
+      <button id="next" aria-label="Næste uge">&rsaquo;</button>
+    </div>
+    <button class="jump" id="jump" hidden>Hop til denne uge</button>
+
     <div id="legend" class="legend">🔁 byttet = midlertidig ændring for ugen</div>
     <div id="board" class="board" style="display:none;"></div>
     <div id="empty" class="empty" style="display:none;">Ingen kørsler fundet.</div>
@@ -240,7 +263,7 @@ const SHEET_EDIT_ID = "1yawTv2gBaK5WEfcmhpPHNse1CDYndbuJ";
 // GID for fanebladet "Undtagelser" — knappen sender folk hertil (ikke til
 // Kørselsplan), så de retter det rigtige sted og ikke roder i formler.
 // Find den ved at åbne "Undtagelser"-fanen og kigge efter "gid=" i URL'en.
-const EXCEPTIONS_GID = "491318011";
+const EXCEPTIONS_GID = "38480173";
 // ============================================================
 
 const DRIVER_COLORS = {
@@ -253,8 +276,12 @@ const DRIVER_COLORS = {
 };
 const DAY_ORDER = ["Mandag","Tirsdag","Onsdag","Torsdag","Fredag","Lørdag","Søndag"];
 
-function csvUrl(){
-  return `https://docs.google.com/spreadsheets/d/e/${PUBLISHED_ID}/pub?gid=${GID}&single=true&output=csv&t=${Date.now()}`;
+let offset = 0;          // 0 = aktuel uge, ±1 = en uge frem/tilbage
+let planRows = null;     // cache af Kørselsplan
+let excRows  = null;     // cache af Undtagelser
+
+function csvUrl(gid){
+  return `https://docs.google.com/spreadsheets/d/e/${PUBLISHED_ID}/pub?gid=${gid}&single=true&output=csv&t=${Date.now()}`;
 }
 
 function parseCSV(text){
@@ -289,9 +316,17 @@ function getEffective(){
   const isWeekend = (dow === 6 || dow === 0);
   const ref = new Date(now);
   if(isWeekend) ref.setDate(now.getDate() + 7);
+  ref.setDate(ref.getDate() + offset*7);          // ugeskifteren
   const week = isoWeek(ref);
-  return { week, parity: week % 2 === 0 ? "lige" : "ulige", isWeekend };
+  return { week, parity: week % 2 === 0 ? "lige" : "ulige", isWeekend, ref };
 }
+function mondayOf(d){
+  const x = new Date(d);
+  x.setDate(x.getDate() - ((x.getDay()+6) % 7));
+  x.setHours(0,0,0,0);
+  return x;
+}
+const fmtDay = d => d.getDate() + "." + (d.getMonth()+1) + ".";
 
 function todayName(){
   const dow = new Date().getDay(); // 0 Sun..6 Sat
@@ -308,15 +343,53 @@ function parityOf(label){
   return null;
 }
 
-async function load(){
-  const statusEl = document.getElementById("status");
+// henter begge faner (plan + undtagelser) og cacher dem
+async function fetchData(force){
+  if(planRows && excRows && !force) return;
+  const jobs = [fetch(csvUrl(GID), {cache:"no-store"}).then(r=>{
+    if(!r.ok) throw new Error("Kørselsplan: HTTP "+r.status);
+    return r.text();
+  })];
+  const hasExc = EXCEPTIONS_GID && !EXCEPTIONS_GID.startsWith("PASTE");
+  if(hasExc){
+    jobs.push(fetch(csvUrl(EXCEPTIONS_GID), {cache:"no-store"}).then(r=> r.ok ? r.text() : ""));
+  }
+  const res = await Promise.all(jobs);
+  planRows = parseCSV(res[0]);
+  excRows  = hasExc && res[1] ? parseCSV(res[1]) : [];
+}
+
+// undtagelser for en given uge:
+//   exact["Tirsdag|07:20"] = specifik afgang (Tid udfyldt i Undtagelser)
+//   byDay["Tirsdag"]       = hele dagen (Tid tom i Undtagelser)
+function exceptionsFor(week){
+  const exact = {}, byDay = {};
+  if(!excRows) return { exact, byDay };
+  const hIdx = excRows.findIndex(r => (r[0]||"").trim() === "Uge-nr.");
+  if(hIdx === -1) return { exact, byDay };
+  for(let i = hIdx+1; i < excRows.length; i++){
+    const r = excRows[i];
+    const uge = parseInt((r[0]||"").trim(), 10);
+    const dag = (r[1]||"").trim();
+    const tid = (r[2]||"").trim();
+    const koerer = (r[3]||"").trim();
+    if(!uge || !dag || !koerer || uge !== week) continue;
+    const entry = { koerer, note:(r[4]||"").trim() };
+    if(tid) exact[dag+"|"+tid] = entry;
+    else byDay[dag] = entry;
+  }
+  return { exact, byDay };
+}
+
+async function load(force){
   const boardEl = document.getElementById("board");
   const emptyEl = document.getElementById("empty");
   const errEl = document.getElementById("err");
   const updatedEl = document.getElementById("updated");
+  const weeknumEl = document.getElementById("weeknum");
+  const weeksubEl = document.getElementById("weeksub");
 
   if(PUBLISHED_ID.startsWith("PASTE") || GID.startsWith("PASTE")){
-    statusEl.style.display = "none";
     errEl.style.display = "block";
     errEl.innerHTML = `<b>Ikke sat op endnu.</b><br>Udfyld PUBLISHED_ID og GID øverst i filen.
       <code>Fil → Del → Publicér på nettet → vælg "Kørselsplan" → CSV</code>`;
@@ -324,18 +397,25 @@ async function load(){
   }
 
   try{
-    const res = await fetch(csvUrl(), { cache: "no-store" });
-    if(!res.ok) throw new Error("HTTP " + res.status);
-    const text = await res.text();
-    const rows = parseCSV(text);
-
-    // find header row ("Dag" i kolonne 0) — statusteksten sættes nedenfor ud fra effektiv uge
+    await fetchData(force);
+    const rows = planRows;
     const eff = getEffective();
-    statusEl.innerHTML = `Herunder vises ${eff.isWeekend ? "næste" : "denne"} uge: Uge <b>${eff.week}</b>`;
+    const exc = exceptionsFor(eff.week);
+
+    // uge-header
+    const mon = mondayOf(eff.ref), fri = new Date(mon);
+    fri.setDate(fri.getDate()+4);
+    weeknumEl.textContent = "Uge " + eff.week;
+    const isCurrent = (offset === 0);
+    const tag = isCurrent ? `<span class="tag">${eff.isWeekend ? "næste uge" : "denne uge"}</span> · ` : "";
+    weeksubEl.innerHTML = tag + fmtDay(mon) + "–" + fmtDay(fri) + " · " + eff.parity + " uge";
+    const jumpEl = document.getElementById("jump");
+    jumpEl.hidden = isCurrent;
+    jumpEl.textContent = eff.isWeekend ? "Hop til næste uge" : "Hop til denne uge";
+
     const headerIdx = rows.findIndex(r => (r[0] || "").trim() === "Dag");
     if(headerIdx === -1) throw new Error("Kunne ikke finde tabellen (mangler 'Dag'-header).");
 
-    const parity = eff.parity;
     const today = todayName();
     const items = [];
     for(let i = headerIdx + 1; i < rows.length; i++){
@@ -345,15 +425,22 @@ async function load(){
       if(/^Noter/i.test(dag)) break;
 
       const p = parityOf(dag);
-      if(p && p !== parity) continue; // spring den ikke-gældende torsdag-variant over
+      if(p && p !== eff.parity) continue;   // kun den gældende torsdag-variant
+
+      const base = baseDay(dag);
+      const tid = (r[1]||"").trim();
+      // kolonne I (index 8) = "Kører (fast)"; falder tilbage til kolonne D hvis tom
+      const fast = (r[8] || "").trim() || (r[3] || "").trim();
+      const ex = exc.exact[base+"|"+tid] || exc.byDay[base];
 
       items.push({
-        dag, base: baseDay(dag),
-        tid: (r[1]||"").trim(),
+        dag, base,
+        tid,
         opgave: (r[2]||"").trim(),
-        koerer: (r[3]||"").trim(),
-        note: (r[4]||"").trim(),
-        obs: (r[5]||"").trim(),
+        koerer: ex ? ex.koerer : fast,
+        fast: fast,
+        byttet: !!ex,
+        note: ex && ex.note ? ex.note : (r[4]||"").trim(),
       });
     }
 
@@ -362,7 +449,7 @@ async function load(){
       emptyEl.style.display = "block";
     } else {
       boardEl.innerHTML = items.map(it => {
-        const isToday = it.base === today;
+        const isToday = isCurrent && !eff.isWeekend && it.base === today;
         const colors = DRIVER_COLORS[it.koerer] || { bg:"#2a323f", fg:"#eef1f5" };
         return `
           <div class="row ${isToday ? "today" : ""}">
@@ -370,11 +457,12 @@ async function load(){
             <div class="meta">
               <div class="day">${escapeHtml(it.dag)}</div>
               <div class="task">${escapeHtml(it.opgave)}</div>
-              ${it.note ? `<div class="note">${escapeHtml(it.note)}</div>` : ""}
+              ${it.byttet ? `<div class="note">normalt ${escapeHtml(it.fast)}</div>`
+                          : (it.note ? `<div class="note">${escapeHtml(it.note)}</div>` : "")}
             </div>
             <div class="driver">
               <span class="chip" style="background:${colors.bg}; color:${colors.fg}">${escapeHtml(it.koerer)}</span>
-              ${it.obs ? `<span class="swapped">Byttet</span>` : ""}
+              ${it.byttet ? `<span class="swapped">🔁 Byttet</span>` : ""}
             </div>
           </div>`;
       }).join("");
@@ -384,10 +472,9 @@ async function load(){
     errEl.style.display = "none";
     updatedEl.textContent = "Opdateret " + new Date().toLocaleTimeString("da-DK", {hour:"2-digit", minute:"2-digit"});
   } catch(e){
-    statusEl.style.display = "none";
     boardEl.style.display = "none";
     errEl.style.display = "block";
-    errEl.innerHTML = `<b>Kunne ikke hente data.</b><br>Tjek at arket stadig er publiceret på nettet, og at PUBLISHED_ID/GID er korrekte.
+    errEl.innerHTML = `<b>Kunne ikke hente data.</b><br>Tjek at både "Kørselsplan" og "Undtagelser" er publiceret på nettet som CSV.
       <code>${escapeHtml(e.message)}</code>`;
   }
 }
@@ -409,10 +496,14 @@ if(SHEET_EDIT_ID && !SHEET_EDIT_ID.startsWith("PASTE")){
   fab.style.display = "flex";
 }
 
-document.getElementById("refresh").addEventListener("click", load);
-document.addEventListener("visibilitychange", () => { if(document.visibilityState === "visible") load(); });
+document.getElementById("prev").addEventListener("click", () => { offset--; load(); });
+document.getElementById("next").addEventListener("click", () => { offset++; load(); });
+document.getElementById("jump").addEventListener("click", () => { offset = 0; load(); });
+
+document.getElementById("refresh").addEventListener("click", () => load(true));
+document.addEventListener("visibilitychange", () => { if(document.visibilityState === "visible") load(true); });
 load();
-setInterval(load, 5 * 60 * 1000);
+setInterval(() => load(true), 5 * 60 * 1000);
 </script>
 </body>
 </html>
