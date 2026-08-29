@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="SIF kørsel (test)">
+<meta name="theme-color" content="#12161d">
+<title>SIF kørsel – TEST (flergruppe)</title>
+<style>
+  :root{
+    --bg:#12161d; --panel:#1b212b; --panel-2:#212836; --line:#2a323f;
+    --text:#eef1f5; --muted:#8a93a3; --amber:#ffb000; --amber-dim:#4d3a12;
+    --ok:#37c26a; --ok-dim:#14301f; --red:#f0a0a0;
+  }
+  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body{ height:100%; }
+  body{
+    margin:0; background:radial-gradient(1200px 600px at 50% -10%, #1a2029 0%, var(--bg) 55%);
+    color:var(--text); font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;
+    min-height:100dvh;
+    padding:max(18px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) max(24px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));
+    display:flex; flex-direction:column; align-items:center;
+  }
+  .wrap{ width:100%; max-width:480px; }
+
+  .topbar{ display:flex; align-items:center; gap:9px; margin:0 0 12px; }
+  h1{ font-family:ui-monospace,"SF Mono",Menlo,monospace; font-weight:700; flex:1; min-width:0;
+    font-size:clamp(18px,5.2vw,23px); margin:0; display:flex; align-items:center; gap:9px; }
+  h1 .dot{ width:8px;height:8px;border-radius:50%;background:var(--amber);box-shadow:0 0 8px var(--amber);flex-shrink:0; }
+  .proto{ font-size:9.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--amber);
+    border:1px solid var(--amber); padding:3px 6px; border-radius:5px; font-weight:600; flex-shrink:0; }
+
+  .weekbar{ display:flex; align-items:center; gap:9px;
+    background:linear-gradient(180deg,var(--panel-2),var(--panel));
+    border:1px solid var(--line); border-radius:13px; padding:9px 11px; }
+  .weekbar > button{ background:none; border:1px solid var(--line); color:var(--text);
+    width:36px; height:36px; border-radius:9px; font-size:17px; line-height:1; flex-shrink:0; }
+  .weekbar > button:active{ background:var(--panel-2); }
+  .weekinfo{ flex:1; text-align:center; min-width:0; }
+  .weeknum{ font-family:ui-monospace,Menlo,monospace; font-weight:700; font-size:15px; }
+  .weeksub{ font-size:10.5px; color:var(--muted); margin-top:2px; }
+  .weeksub .tag{ color:var(--amber); }
+  .jump{ display:block; width:100%; text-align:center; background:none; border:none; color:var(--muted);
+    font:inherit; font-size:10.5px; padding:7px 0 4px; text-decoration:underline; text-underline-offset:3px; }
+  .jump[hidden]{ display:none; }
+
+  .chips{ display:flex; flex-wrap:wrap; gap:5px; margin:11px 0 2px; }
+  .gchip{ border:1px solid var(--line); background:var(--panel); color:var(--muted);
+    border-radius:999px; padding:5px 11px; font:inherit; font-size:11.5px;
+    display:flex; align-items:center; gap:6px; }
+  .gchip .swatch{ width:7px;height:7px;border-radius:50%; opacity:.4; }
+  .gchip.on{ color:var(--text); border-color:#48546a; background:var(--panel-2); }
+  .gchip.on .swatch{ opacity:1; }
+  .gchip .mine{ font-size:8.5px; letter-spacing:.08em; opacity:.55; }
+
+  .daylabel{ font-family:ui-monospace,Menlo,monospace; font-size:10.5px; letter-spacing:.14em;
+    text-transform:uppercase; color:var(--muted); margin:16px 0 6px 2px; display:flex; gap:8px; }
+  .daylabel.today{ color:var(--amber); }
+  .daylabel .date{ letter-spacing:0; text-transform:none; opacity:.65; }
+
+  .card{ background:var(--panel); border:1px solid var(--line); border-radius:13px; overflow:hidden; margin-bottom:9px; }
+  .row{ display:grid; grid-template-columns:52px 1fr auto; gap:9px; align-items:center;
+    padding:10px 12px; border-bottom:1px solid var(--line); }
+  .row:last-child{ border-bottom:none; }
+  .row.today{ background:linear-gradient(90deg,var(--amber-dim),transparent 60%); box-shadow:inset 3px 0 0 var(--amber); }
+  .time{ font-family:ui-monospace,Menlo,monospace; font-weight:700; font-size:12.5px; }
+  .mid{ min-width:0; }
+  .who{ font-size:14px; font-weight:600; display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+  .who .swatch{ width:7px;height:7px;border-radius:50%; flex-shrink:0; }
+  .who .swap{ font-size:10px; }
+  .what{ font-size:10.5px; color:var(--muted); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .what .was{ color:var(--amber); opacity:.85; }
+  .gname{ font-size:9.5px; color:var(--muted); margin-top:2px; }
+  .seats{ font-family:ui-monospace,Menlo,monospace; font-size:10.5px; color:var(--muted); white-space:nowrap; text-align:right; }
+
+  .spare{ display:flex; gap:7px; padding:8px 12px; font-size:11px; background:var(--ok-dim);
+    color:#a8e6bf; border-bottom:1px solid var(--line); line-height:1.4; }
+
+  .groups{ margin-top:22px; border-top:1px solid var(--line); padding-top:15px; }
+  .groups h2{ font-family:ui-monospace,Menlo,monospace; font-size:10.5px; letter-spacing:.14em;
+    text-transform:uppercase; color:var(--muted); margin:0 0 8px 2px; font-weight:500; }
+  .grouprow{ display:flex; align-items:center; gap:9px; padding:9px 11px; background:var(--panel);
+    border:1px solid var(--line); border-radius:10px; margin-bottom:5px; }
+  .grouprow .sw{ width:9px;height:9px;border-radius:50%;flex-shrink:0; }
+  .grouprow .name{ flex:1; font-size:13px; min-width:0; }
+  .grouprow .name small{ display:block; color:var(--muted); font-size:10px; margin-top:2px; }
+
+  .note{ font-size:10.5px; color:var(--muted); line-height:1.6; margin-top:18px;
+    padding:11px 13px; background:var(--panel); border:1px solid var(--amber); border-radius:11px; }
+  .note b{ color:var(--amber); }
+
+  .empty, .err{ text-align:center; color:var(--muted); padding:40px 20px; font-size:14px; line-height:1.5; }
+  .err b{ color:var(--text); }
+  .err code{ display:block; margin-top:10px; background:var(--panel-2); padding:10px; border-radius:8px;
+    font-size:11px; text-align:left; color:var(--muted); word-break:break-all; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <h1><span class="dot"></span>SIF kørsel</h1>
+    <span class="proto">Test · flergruppe</span>
+  </div>
+
+  <div>
+    <div class="weekbar">
+      <button id="prev" aria-label="Forrige uge">&lsaquo;</button>
+      <div class="weekinfo"><div class="weeknum" id="weeknum">–</div><div class="weeksub" id="weeksub">Henter …</div></div>
+      <button id="next" aria-label="Næste uge">&rsaquo;</button>
+    </div>
+    <button class="jump" id="jump" hidden>Hop til denne uge</button>
+  </div>
+
+  <div class="chips" id="chips"></div>
+  <div id="days"></div>
+  <div id="empty" class="empty" style="display:none;">Ingen kørsler fundet.</div>
+  <div id="err" class="err" style="display:none;"></div>
+
+  <div class="groups" id="groupsWrap" style="display:none;">
+    <h2>Køregrupper</h2>
+    <div id="grouplist"></div>
+  </div>
+
+  <div class="note">
+    <b>Testversion.</b> Kører fra et separat testregneark, adskilt fra jeres rigtige køreplan.
+    Pladstal er gruppens faste standard — der er endnu ingen redigering af enkelte dage her.
+  </div>
+</div>
+
+<script>
+// ============================================================
+// KONFIGURATION — udfyld efter du har publiceret testregnearket:
+// Fil → Del → Publicér på nettet → vælg hvert faneblad for sig → CSV
+// PUBLISHED_ID er fælles for hele filen (samme del af linket for alle faner).
+// Hver GID findes ved at åbne fanen og kigge efter "gid=" i adresselinjen.
+// ============================================================
+const PUBLISHED_ID   = "2PACX-1vRU-c87ECW_G9PJaG8B0okLfe1XGl8v7-af8EqpF024cyBoqa1RdryB5r087Faz7w";
+const GID_GRUPPER     = "2084177640";
+const GID_CHAUFFOERER = "403777369";
+const GID_KORSELSPLAN = "841815679";
+const GID_UNDTAGELSER = "1856115142";
+// ============================================================
+
+const WINDOW_MIN = 15;
+const PALETTE = [
+  {bg:"#1c3a52",fg:"#8ec9f2",dot:"#5aa9e0"},{bg:"#233a24",fg:"#9edb9f",dot:"#6cc46e"},
+  {bg:"#4a2c19",fg:"#f2b28e",dot:"#e08a5a"},{bg:"#4a4319",fg:"#f2df8e",dot:"#d9c25a"},
+  {bg:"#33263f",fg:"#cfa8f2",dot:"#a97ce0"},{bg:"#3d1f26",fg:"#f0a0b0",dot:"#d97187"},
+];
+const DAYS = ["Mandag","Tirsdag","Onsdag","Torsdag","Fredag"];
+
+let offset = 0;
+let cache = null; // { groups, household, plan, exc }
+
+function csvUrl(gid){
+  return `https://docs.google.com/spreadsheets/d/e/${PUBLISHED_ID}/pub?gid=${gid}&single=true&output=csv&t=${Date.now()}`;
+}
+function parseCSV(text){
+  const rows=[]; let row=[], field="", inQ=false;
+  for(let i=0;i<text.length;i++){
+    const c=text[i];
+    if(inQ){ if(c==='"'){ if(text[i+1]==='"'){field+='"';i++;} else inQ=false; } else field+=c; }
+    else{
+      if(c==='"') inQ=true;
+      else if(c===','){ row.push(field); field=""; }
+      else if(c==='\n'){ row.push(field); rows.push(row); row=[]; field=""; }
+      else if(c==='\r'){ /* skip */ }
+      else field+=c;
+    }
+  }
+  if(field.length||row.length){ row.push(field); rows.push(row); }
+  return rows;
+}
+function findHeader(rows, col0Text){
+  return rows.findIndex(r => (r[0]||"").trim() === col0Text);
+}
+function isoWeek(d){
+  const x=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));
+  x.setUTCDate(x.getUTCDate()+4-(x.getUTCDay()||7));
+  return Math.ceil((((x-new Date(Date.UTC(x.getUTCFullYear(),0,1)))/864e5)+1)/7);
+}
+function mondayOf(d){ const x=new Date(d); x.setDate(x.getDate()-((x.getDay()+6)%7)); x.setHours(0,0,0,0); return x; }
+const isWeekendNow = () => [0,6].includes(new Date().getDay());
+function getEffective(){
+  const now=new Date(), dow=now.getDay(), isWeekend=(dow===6||dow===0);
+  const ref=new Date(now);
+  if(isWeekend) ref.setDate(now.getDate()+7);
+  ref.setDate(ref.getDate()+offset*7);
+  const week=isoWeek(ref);
+  return { week, parity: week%2===0 ? "lige" : "ulige", isWeekend, ref };
+}
+const fmtDay = d => d.getDate()+"."+(d.getMonth()+1)+".";
+const toMin = t => { const p=t.split(":"); return (+p[0])*60+(+p[1]); };
+function escapeHtml(s){ const d=document.createElement("div"); d.textContent=s; return d.innerHTML; }
+
+async function fetchAll(){
+  const urls = [GID_GRUPPER, GID_CHAUFFOERER, GID_KORSELSPLAN, GID_UNDTAGELSER];
+  const texts = await Promise.all(urls.map(gid =>
+    fetch(csvUrl(gid), {cache:"no-store"}).then(r=>{
+      if(!r.ok) throw new Error("HTTP "+r.status+" ved hentning af data");
+      return r.text();
+    })
+  ));
+  const [gRows, cRows, pRows, eRows] = texts.map(parseCSV);
+
+  // Grupper
+  const groups = [];
+  const gh = findHeader(gRows, "Gruppe");
+  if(gh > -1){
+    for(let i=gh+1;i<gRows.length;i++){
+      const r=gRows[i]; const name=(r[0]||"").trim();
+      if(!name) break;
+      groups.push({
+        name, seats: parseInt(r[1],10)||4, pax: parseInt(r[2],10)||0,
+        mine: /^ja$/i.test((r[3]||"").trim()), color: groups.length,
+      });
+    }
+  }
+  const groupByName = n => groups.find(g=>g.name===n);
+
+  // Chauffører -> husstands-opslag (navn -> primær chauffør-navn)
+  const household = {};
+  const ch = findHeader(cRows, "Gruppe");
+  if(ch > -1){
+    for(let i=ch+1;i<cRows.length;i++){
+      const r=cRows[i]; const drv=(r[1]||"").trim();
+      if(!drv) continue;
+      household[drv]=drv;
+      (r[2]||"").split(",").map(s=>s.trim()).filter(Boolean).forEach(m=>{ household[m]=drv; });
+    }
+  }
+
+  // Kørselsplan
+  const plan = [];
+  const ph = findHeader(pRows, "Gruppe");
+  if(ph > -1){
+    for(let i=ph+1;i<pRows.length;i++){
+      const r=pRows[i]; const gruppe=(r[0]||"").trim();
+      if(!gruppe) continue;
+      plan.push({
+        gruppe, dag:(r[1]||"").trim(), tid:(r[2]||"").trim(), opgave:(r[3]||"").trim(),
+        koerer:(r[4]||"").trim(), alt:(r[5]||"").trim(), note:(r[6]||"").trim(),
+      });
+    }
+  }
+
+  // Undtagelser
+  const exc = [];
+  const eh = findHeader(eRows, "Gruppe");
+  if(eh > -1){
+    for(let i=eh+1;i<eRows.length;i++){
+      const r=eRows[i]; const gruppe=(r[0]||"").trim();
+      const uge=parseInt((r[1]||"").trim(),10);
+      if(!gruppe || !uge) continue;
+      exc.push({ gruppe, uge, dag:(r[2]||"").trim(), tid:(r[3]||"").trim(),
+                 koerer:(r[4]||"").trim(), note:(r[5]||"").trim() });
+    }
+  }
+
+  return { groups, groupByName, household, plan, exc };
+}
+
+function effectiveDriver(row, parity){
+  return (row.alt && parity==="ulige") ? row.alt : row.koerer;
+}
+function findException(exc, gruppe, week, dag, tid){
+  const specific = exc.find(e => e.gruppe===gruppe && e.uge===week && e.dag===dag && e.tid===tid);
+  if(specific) return specific;
+  return exc.find(e => e.gruppe===gruppe && e.uge===week && e.dag===dag && !e.tid);
+}
+function clusterByTime(entries){
+  const sorted = entries.slice().sort((a,b)=> a.t-b.t || a.gruppe.localeCompare(b.gruppe));
+  const clusters=[]; let cur=null;
+  sorted.forEach(e=>{
+    if(!cur || (e.t-cur.anchor)>WINDOW_MIN){ cur={anchor:e.t, items:[]}; clusters.push(cur); }
+    cur.items.push(e);
+  });
+  return clusters;
+}
+function analyse(items){
+  const totalFree = items.reduce((a,e)=>a+e.free,0);
+  let spare=null;
+  if(items.length>1){
+    const cand = items.slice().sort((a,b)=>(a.seats-a.free)-(b.seats-b.free))[0];
+    if((totalFree-cand.free) >= (cand.seats-cand.free)) spare=cand;
+  }
+  return { totalFree, spare };
+}
+
+async function load(force){
+  const daysEl=document.getElementById("days");
+  const emptyEl=document.getElementById("empty");
+  const errEl=document.getElementById("err");
+  const weeknumEl=document.getElementById("weeknum");
+  const weeksubEl=document.getElementById("weeksub");
+  const chipsEl=document.getElementById("chips");
+  const jumpEl=document.getElementById("jump");
+  const groupsWrap=document.getElementById("groupsWrap");
+
+  if(PUBLISHED_ID.startsWith("PASTE")){
+    errEl.style.display="block";
+    errEl.innerHTML=`<b>Ikke sat op endnu.</b><br>Udfyld PUBLISHED_ID og de fire GID'er øverst i filen, efter du har publiceret testregnearkets faneblade som CSV.`;
+    return;
+  }
+
+  try{
+    if(!cache || force) cache = await fetchAll();
+    const { groups, groupByName, household, plan, exc } = cache;
+    const eff = getEffective();
+    const week = eff.week, parity = eff.parity;
+
+    // default: kun grupper markeret "Min gruppe" — ellers alle
+    if(!window.__visible){
+      const mine = groups.filter(g=>g.mine).map(g=>g.name);
+      window.__visible = new Set(mine.length ? mine : groups.map(g=>g.name));
+    }
+    const visible = window.__visible;
+    const multi = visible.size > 1;
+
+    const mon=mondayOf(eff.ref), fri=new Date(mon); fri.setDate(fri.getDate()+4);
+    weeknumEl.textContent = "Uge "+week;
+    const isCurrent = (offset===0);
+    const tag = isCurrent ? `<span class="tag">${eff.isWeekend?"Næste uge":"Denne uge"}</span> · ` : "";
+    weeksubEl.innerHTML = tag+fmtDay(mon)+"–"+fmtDay(fri)+" · "+parity+" uge";
+    jumpEl.hidden = isCurrent;
+    jumpEl.textContent = eff.isWeekend ? "Hop til næste uge" : "Hop til denne uge";
+
+    chipsEl.innerHTML = groups.map(g=>{
+      const col = PALETTE[g.color % PALETTE.length];
+      return `<button class="gchip ${visible.has(g.name)?"on":""}" data-g="${escapeHtml(g.name)}">
+        <span class="swatch" style="background:${col.dot}"></span>${escapeHtml(g.name)}
+        ${g.mine?'<span class="mine">MIN</span>':''}</button>`;
+    }).join("");
+
+    const todayName = ["Søndag","Mandag","Tirsdag","Onsdag","Torsdag","Fredag","Lørdag"][new Date().getDay()];
+    const showToday = isCurrent && !eff.isWeekend;
+
+    daysEl.innerHTML = "";
+    let anyShown = false;
+
+    DAYS.forEach((day,di) => {
+      const dayEntries = plan.filter(p=>p.dag===day).map(p=>{
+        const g = groupByName(p.gruppe);
+        if(!g) return null;
+        const base = effectiveDriver(p, parity);
+        const ex = findException(exc, p.gruppe, week, day, p.tid);
+        const koerer = ex ? ex.koerer : base;
+        const isSwap = ex ? (household[koerer]||koerer) !== (household[base]||base) : false;
+        return { gruppe:p.gruppe, g, opgave:p.opgave, tid:p.tid, t:toMin(p.tid),
+                  koerer, base, note: ex ? (ex.note||"") : (p.note||""),
+                  swap:isSwap, free: Math.max(0, g.seats-g.pax), seats:g.seats };
+      }).filter(Boolean);
+      if(!dayEntries.length) return;
+
+      const clusters = clusterByTime(dayEntries);
+      const anyVisible = clusters.some(cl => cl.items.some(e=>visible.has(e.gruppe)));
+      if(!anyVisible) return;
+      anyShown = true;
+
+      const dt=new Date(mon); dt.setDate(dt.getDate()+di);
+      const lbl=document.createElement("div");
+      lbl.className="daylabel"+(showToday&&day===todayName?" today":"");
+      lbl.innerHTML = day+` <span class="date">${fmtDay(dt)}</span>`;
+      daysEl.appendChild(lbl);
+
+      const card=document.createElement("div"); card.className="card"; let html="";
+      clusters.forEach(cl=>{
+        const shown = cl.items.filter(e=>visible.has(e.gruppe));
+        if(!shown.length) return;
+        const res = analyse(cl.items);
+
+        if(res.spare){
+          const sp=res.spare, pax=sp.seats-sp.free;
+          const others=[...new Set(cl.items.filter(e=>e.gruppe!==sp.gruppe).map(e=>e.gruppe))];
+          html += `<div class="spare">🚗 <span><b>${escapeHtml(sp.koerer)}</b>${(multi||!sp.g.mine)?` (${escapeHtml(sp.gruppe)})`:""} kan blive hjemme — ${pax} passager${pax===1?"":"er"} kan være hos ${others.map(escapeHtml).join(" / ")}.</span></div>`;
+        }
+        shown.forEach(e=>{
+          const col = PALETTE[e.g.color % PALETTE.length];
+          const isToday = showToday && day===todayName;
+          html += `<div class="row ${isToday?"today":""}">
+            <div class="time">${escapeHtml(e.tid)}</div>
+            <div class="mid">
+              <div class="who">${multi?`<span class="swatch" style="background:${col.dot}"></span>`:""}${escapeHtml(e.koerer)}${e.swap?'<span class="swap">🔁</span>':""}</div>
+              <div class="what">${e.swap?`<span class="was">normalt ${escapeHtml(e.base)}</span>`:escapeHtml(e.note||e.opgave)}${multi?" · "+escapeHtml(e.gruppe):""}</div>
+            </div>
+            <div class="seats">${e.free} ledig${e.free===1?"":"e"}</div>
+          </div>`;
+        });
+      });
+      card.innerHTML = html;
+      daysEl.appendChild(card);
+    });
+
+    emptyEl.style.display = anyShown ? "none" : "block";
+    errEl.style.display = "none";
+
+    groupsWrap.style.display = "block";
+    document.getElementById("grouplist").innerHTML = groups.map(g=>{
+      const col = PALETTE[g.color % PALETTE.length];
+      const free = Math.max(0, g.seats-g.pax);
+      return `<div class="grouprow"><span class="sw" style="background:${col.dot}"></span>
+        <span class="name">${escapeHtml(g.name)}${g.mine?" · min gruppe":""}
+        <small>${g.pax} deltagere · ${g.seats} pladser · standard ${free} ledige</small></span></div>`;
+    }).join("");
+
+  } catch(e){
+    daysEl.innerHTML=""; emptyEl.style.display="none";
+    errEl.style.display="block";
+    errEl.innerHTML=`<b>Kunne ikke hente data.</b><br>Tjek at alle fire faneblade er publiceret på nettet som CSV.
+      <code>${escapeHtml(e.message)}</code>`;
+  }
+}
+
+document.getElementById("prev").addEventListener("click", ()=>{ offset--; load(); });
+document.getElementById("next").addEventListener("click", ()=>{ offset++; load(); });
+document.getElementById("jump").addEventListener("click", ()=>{ offset=0; load(); });
+document.getElementById("chips").addEventListener("click", (e)=>{
+  const b=e.target.closest("[data-g]"); if(!b) return;
+  const name=b.dataset.g;
+  if(window.__visible.has(name)){ if(window.__visible.size>1) window.__visible.delete(name); }
+  else window.__visible.add(name);
+  load();
+});
+document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState==="visible") load(true); });
+load();
+setInterval(()=>load(true), 5*60*1000);
+</script>
+</body>
+</html>
