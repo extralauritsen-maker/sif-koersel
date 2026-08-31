@@ -62,9 +62,11 @@
 
   .card{ background:var(--panel); border:1px solid var(--line); border-radius:13px; overflow:hidden; margin-bottom:9px; }
   .row{ display:grid; grid-template-columns:52px 1fr auto; gap:9px; align-items:center;
-    padding:10px 12px; border-bottom:1px solid var(--line); }
+    padding:10px 12px; border-bottom:1px solid var(--line); width:100%; background:none;
+    border-left:none; border-right:none; border-top:none; color:var(--text); font:inherit; text-align:left; }
   .row:last-child{ border-bottom:none; }
   .row.today{ background:linear-gradient(90deg,var(--amber-dim),transparent 60%); box-shadow:inset 3px 0 0 var(--amber); }
+  .row.open{ background:var(--panel-2); }
   .time{ font-family:ui-monospace,Menlo,monospace; font-weight:700; font-size:12.5px; }
   .mid{ min-width:0; }
   .who{ font-size:14px; font-weight:600; display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
@@ -73,7 +75,10 @@
   .what{ font-size:10.5px; color:var(--muted); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .what .was{ color:var(--amber); opacity:.85; }
   .gname{ font-size:9.5px; color:var(--muted); margin-top:2px; }
-  .seats{ font-family:ui-monospace,Menlo,monospace; font-size:10.5px; color:var(--muted); white-space:nowrap; text-align:right; }
+  .chev{ color:var(--muted); font-size:11px; width:10px; text-align:center; }
+  .info{ padding:8px 12px 11px; background:var(--panel-2); border-bottom:1px solid var(--line);
+    font-size:11px; color:var(--muted); line-height:1.5; }
+  .info b{ color:var(--text); }
 
   .spare{ display:flex; gap:7px; padding:8px 12px; font-size:11px; background:var(--ok-dim);
     color:#a8e6bf; border-bottom:1px solid var(--line); line-height:1.4; }
@@ -136,11 +141,11 @@
 // PUBLISHED_ID er fælles for hele filen (samme del af linket for alle faner).
 // Hver GID findes ved at åbne fanen og kigge efter "gid=" i adresselinjen.
 // ============================================================
-const PUBLISHED_ID   = "2PACX-1vRU-c87ECW_G9PJaG8B0okLfe1XGl8v7-af8EqpF024cyBoqa1RdryB5r087Faz7w";
-const GID_GRUPPER     = "2084177640";
-const GID_CHAUFFOERER = "403777369";
-const GID_KORSELSPLAN = "841815679";
-const GID_UNDTAGELSER = "1856115142";
+const PUBLISHED_ID   = "PASTE_PUBLISHED_ID_HERE";
+const GID_GRUPPER     = "PASTE_GID_GRUPPER_HERE";
+const GID_CHAUFFOERER = "PASTE_GID_CHAUFFOERER_HERE";
+const GID_KORSELSPLAN = "PASTE_GID_KORSELSPLAN_HERE";
+const GID_UNDTAGELSER = "PASTE_GID_UNDTAGELSER_HERE";
 // ============================================================
 
 const WINDOW_MIN = 15;
@@ -379,14 +384,22 @@ async function load(force){
         shown.forEach(e=>{
           const col = PALETTE[e.g.color % PALETTE.length];
           const isToday = showToday && day===todayName;
-          html += `<div class="row ${isToday?"today":""}">
+          const key = e.gruppe+"|"+day+"|"+e.tid;
+          const isOpen = (window.__openKey === key);
+          html += `<button class="row ${isToday?"today":""} ${isOpen?"open":""}" data-k="${escapeHtml(key)}">
             <div class="time">${escapeHtml(e.tid)}</div>
             <div class="mid">
               <div class="who">${multi?`<span class="swatch" style="background:${col.dot}"></span>`:""}${escapeHtml(e.koerer)}${e.swap?'<span class="swap">🔁</span>':""}</div>
               <div class="what">${e.swap?`<span class="was">normalt ${escapeHtml(e.base)}</span>`:escapeHtml(e.note||e.opgave)}${multi?" · "+escapeHtml(e.gruppe):""}</div>
             </div>
-            <div class="seats">${e.free} ledig${e.free===1?"":"e"}</div>
-          </div>`;
+            <div class="chev">${isOpen?"▴":"▾"}</div>
+          </button>`;
+          if(isOpen){
+            html += `<div class="info">
+              <b>${e.free} ledige</b> af ${e.seats} pladser${!multi?` · ${escapeHtml(e.gruppe)}`:""}
+              ${e.note && !e.swap ? " · "+escapeHtml(e.note) : ""}
+            </div>`;
+          }
         });
       });
       card.innerHTML = html;
@@ -413,9 +426,14 @@ async function load(force){
   }
 }
 
-document.getElementById("prev").addEventListener("click", ()=>{ offset--; load(); });
-document.getElementById("next").addEventListener("click", ()=>{ offset++; load(); });
-document.getElementById("jump").addEventListener("click", ()=>{ offset=0; load(); });
+document.getElementById("days").addEventListener("click", (e)=>{
+  const row=e.target.closest(".row"); if(!row) return;
+  window.__openKey = (window.__openKey===row.dataset.k) ? null : row.dataset.k;
+  load();
+});
+document.getElementById("prev").addEventListener("click", ()=>{ offset--; window.__openKey=null; load(); });
+document.getElementById("next").addEventListener("click", ()=>{ offset++; window.__openKey=null; load(); });
+document.getElementById("jump").addEventListener("click", ()=>{ offset=0; window.__openKey=null; load(); });
 document.getElementById("chips").addEventListener("click", (e)=>{
   const b=e.target.closest("[data-g]"); if(!b) return;
   const name=b.dataset.g;
