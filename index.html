@@ -104,6 +104,8 @@
     color: var(--text);
     white-space: normal;
   }
+  .time.changed{ color: var(--amber); }
+  .time s{ display:block; font-size:10px; font-weight:400; color:var(--muted); text-decoration:line-through; }
   .meta{ min-width:0; }
   .day{
     font-size: clamp(13px, 3.4vw, 14.5px);
@@ -245,18 +247,18 @@
 // GID står i URL'en når du har fanebladet "Kørselsplan" åbent i browseren,
 // efter "gid=" (fx ...#gid=123456789).
 // ============================================================
-const PUBLISHED_ID = "2PACX-1vRynXZZRWAWrd1vGsfvT-8g1yYfRkhtrqhvDGaqEStuxWjb7uUqlC1VGAElVvvHLQ";
-const GID = "749200137";
+const PUBLISHED_ID = "2PACX-1vRZqwqN0ldw5Eb9Hviqi8DtkZpSbENZ-9L2LiSe-ZMvuPiUVcnhghlJIveoe-SBxQ";
+const GID = "144890113";
 
 // Til "Rediger"-knappen: den almindelige regneark-ID (IKKE published-ID).
 // Find den i adresselinjen når arket er åbent til redigering:
 // docs.google.com/spreadsheets/d/DENNE-DEL-HER/edit#gid=...
-const SHEET_EDIT_ID = "1yawTv2gBaK5WEfcmhpPHNse1CDYndbuJ";
+const SHEET_EDIT_ID = "1i3h8N8exg9sWO293ubtGINr18N7Tqvnc";
 
 // GID for fanebladet "Undtagelser" — knappen sender folk hertil (ikke til
 // Kørselsplan), så de retter det rigtige sted og ikke roder i formler.
 // Find den ved at åbne "Undtagelser"-fanen og kigge efter "gid=" i URL'en.
-const EXCEPTIONS_GID = "38480173";
+const EXCEPTIONS_GID = "474280402";
 // ============================================================
 
 const DRIVER_COLORS = {
@@ -327,14 +329,6 @@ function todayName(){
   return map[dow];
 }
 
-function baseDay(label){
-  return label.replace(/\s*\(.*\)\s*$/, "").trim();
-}
-function parityOf(label){
-  if(/\(ulige uge\)/i.test(label)) return "ulige";
-  if(/\(lige uge\)/i.test(label)) return "lige";
-  return null;
-}
 
 // henter begge faner (plan + undtagelser) og cacher dem
 async function fetchData(force){
@@ -352,27 +346,68 @@ async function fetchData(force){
   excRows  = hasExc && res[1] ? parseCSV(res[1]) : [];
 }
 
-// undtagelser for en given uge:
-//   exact["Tirsdag|07:20"] = specifik afgang (Tid udfyldt i Undtagelser)
-//   byDay["Tirsdag"]       = hele dagen (Tid tom i Undtagelser)
-function exceptionsFor(week){
-  const exact = {}, byDay = {};
-  if(!excRows) return { exact, byDay };
-  const hIdx = excRows.findIndex(r => (r[0]||"").trim() === "Uge-nr.");
-  if(hIdx === -1) return { exact, byDay };
-  for(let i = hIdx+1; i < excRows.length; i++){
-    const r = excRows[i];
+// ---- PURE LOGIC START (kan testes uden browser) ----
+function baseDay(label){
+  return label.replace(/\s*\(.*\)\s*$/, "").trim();
+}
+function parityOf(label){
+  if(/\(ulige uge\)/i.test(label)) return "ulige";
+  if(/\(lige uge\)/i.test(label)) return "lige";
+  return null;
+}
+// "7:35" / "07:35:00" -> "07:35". Alt andet (fx "14:45 / 15:30") lades uændret.
+function normTime(t){
+  t = (t||"").trim();
+  const m = t.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+  return m ? m[1].padStart(2,"0") + ":" + m[2] : t;
+}
+function periodOf(t){
+  const h = parseInt(t, 10);
+  return (isNaN(h) || h < 12) ? "Morgen" : "Eftermiddag/aften";
+}
+function normPeriod(p){
+  p = (p||"").trim().toLowerCase();
+  if(p.startsWith("morgen")) return "Morgen";
+  if(p.startsWith("eftermiddag") || p.startsWith("aften")) return "Eftermiddag/aften";
+  return "";   // tom eller "Hele dagen"
+}
+// Undtagelser for en given uge:
+//   byPeriod["Mandag|Morgen"] = én bestemt afgang (kan have nyt tidspunkt)
+//   byDay["Mandag"]           = hele dagen (tidspunkt ignoreres)
+function exceptionsFor(rows, week){
+  const byPeriod = {}, byDay = {};
+  const hIdx = rows.findIndex(r => (r[0]||"").trim() === "Uge-nr.");
+  if(hIdx === -1) return { byPeriod, byDay };
+  for(let i = hIdx+1; i < rows.length; i++){
+    const r = rows[i];
     const uge = parseInt((r[0]||"").trim(), 10);
     const dag = (r[1]||"").trim();
-    const tid = (r[2]||"").trim();
-    const koerer = (r[3]||"").trim();
-    if(!uge || !dag || !koerer || uge !== week) continue;
-    const entry = { koerer, note:(r[4]||"").trim() };
-    if(tid) exact[dag+"|"+tid] = entry;
-    else byDay[dag] = entry;
+    if(!uge || !dag || uge !== week) continue;
+    const period = normPeriod(r[2]);
+    const entry = {
+      koerer: (r[3]||"").trim(),                       // tom = behold den faste kører
+      tid:    period ? normTime(r[4]) : "",            // tom = behold det faste tidspunkt
+      note:   (r[5]||"").trim(),
+    };
+    if(period) byPeriod[dag+"|"+period] = entry; else byDay[dag] = entry;
   }
-  return { exact, byDay };
+  return { byPeriod, byDay };
 }
+// p: { dag, tid (fast), opgave, fast, alt, standing }
+function resolveItem(p, parity, exc){
+  const base = baseDay(p.dag);
+  const fixedDriver = (p.alt && parity === "ulige") ? p.alt : p.fast;
+  const exP = exc.byPeriod[base + "|" + periodOf(p.tid)];
+  const ex  = exP || exc.byDay[base];
+  const koerer = (ex && ex.koerer) ? ex.koerer : fixedDriver;
+  // samme kører som i forvejen er ikke et bytte
+  const byttet = !!(ex && ex.koerer) && ex.koerer.toLowerCase() !== fixedDriver.toLowerCase();
+  const tid = (exP && exP.tid) ? exP.tid : p.tid;
+  const note = (ex && ex.note) ? ex.note : (byttet ? "" : p.standing);
+  return { dag:p.dag, base, opgave:p.opgave, tid, fastTid:p.tid, tidRettet: tid !== p.tid,
+           koerer, fast:fixedDriver, byttet, note };
+}
+// ---- PURE LOGIC END ----
 
 async function load(force){
   const boardEl = document.getElementById("board");
@@ -393,7 +428,7 @@ async function load(force){
     await fetchData(force);
     const rows = planRows;
     const eff = getEffective();
-    const exc = exceptionsFor(eff.week);
+    const exc = exceptionsFor(excRows, eff.week);
 
     // uge-header
     const mon = mondayOf(eff.ref), fri = new Date(mon);
@@ -420,21 +455,17 @@ async function load(force){
       const p = parityOf(dag);
       if(p && p !== eff.parity) continue;   // kun den gældende torsdag-variant
 
-      const base = baseDay(dag);
-      const tid = (r[1]||"").trim();
-      // kolonne I (index 8) = "Kører (fast)"; falder tilbage til kolonne D hvis tom
+      // kolonne I (8) = fast kører (lige uge), N (13) = kører i ulige uger,
+      // M (12) = fast tidspunkt, K (10) = fast bemærkning. Kolonne B/D/E er arkets
+      // egen beregning for den uge arket viser, så dem bruger vi kun som nødløsning.
       const fast = (r[8] || "").trim() || (r[3] || "").trim();
-      const ex = exc.exact[base+"|"+tid] || exc.byDay[base];
+      const fixedTid = normTime(r[12] || r[1] || "");
+      const standing = (r.length > 10) ? (r[10]||"").trim() : (r[4]||"").trim();
 
-      items.push({
-        dag, base,
-        tid,
-        opgave: (r[2]||"").trim(),
-        koerer: ex ? ex.koerer : fast,
-        fast: fast,
-        byttet: !!ex,
-        note: ex && ex.note ? ex.note : (r[4]||"").trim(),
-      });
+      items.push(resolveItem({
+        dag, tid: fixedTid, opgave: (r[2]||"").trim(),
+        fast, alt: (r[13]||"").trim(), standing,
+      }, eff.parity, exc));
     }
 
     if(items.length === 0){
@@ -446,7 +477,7 @@ async function load(force){
         const colors = DRIVER_COLORS[it.koerer] || { bg:"#2a323f", fg:"#eef1f5" };
         return `
           <div class="row ${isToday ? "today" : ""}">
-            <div class="time">${formatTime(it.tid)}</div>
+            <div class="time ${it.tidRettet ? "changed" : ""}">${formatTime(it.tid)}${it.tidRettet ? `<s>${formatTime(it.fastTid)}</s>` : ""}</div>
             <div class="meta">
               <div class="day">${escapeHtml(it.dag)}</div>
               <div class="task">${escapeHtml(it.opgave)}</div>
